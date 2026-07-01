@@ -2,8 +2,9 @@
 // Main Essex Wave visualizer (Omma).
 // Served at <mount-path>/ — e.g. https://yoursite.com/wave/
 // URL params (read client-side): ?controls=0|1  ?preset=Essex64L  ?fps=true
-// Static client-only shell — prerender to HTML (no per-request SSR needed).
-export const prerender = true;
+// SSR (not prerendered): Webflow Cloud strips trailing slashes, while Cloudflare's
+// static-asset handler auto-adds them to a prerendered /wave/index.html — the two
+// fight in a redirect loop. Serving the shell via the worker avoids that.
 ---
 
 <!DOCTYPE html>

@@ -3,8 +3,8 @@
 // Served at <mount-path>/auxiliary/ — e.g. https://yoursite.com/wave/auxiliary/
 // URL params (read client-side): ?controls=0  ?preset=Essex  ?bg=transparent
 // Hash form also supported: #controls=0&preset=Essex
-// Static client-only shell — prerender to HTML (no per-request SSR needed).
-export const prerender = true;
+// SSR (not prerendered) — see note in ../index.astro: avoids the Webflow Cloud
+// (no trailing slash) vs. Cloudflare static-asset (adds trailing slash) redirect loop.
 ---
 
 <!DOCTYPE html>
