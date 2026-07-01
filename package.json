@@ -1,0 +1,20 @@
+{
+  "name": "essex-wave",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro build && wrangler dev",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.0",
+    "astro": "^5.13.0",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}
