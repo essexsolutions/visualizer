@@ -91,7 +91,33 @@ for (let j = 0; j < LR; j++) xPos[j] = (j / (LR - 1)) * EX * 2 - EX;
 const vc = { x: 0, z: 0 }, vt = { x: 0, z: 0 };
 const trail = Array.from({ length: TM }, () => ({ x: 0, z: 0 }));
 let mNX = 0, mNY = 0, smNX = 0, smNY = 0, svmX = 0, svmY = 0, tCX = 0, tCY = 28;
+// Flow direction is eased (not snapped): flowAngle chases flowAngleTarget in animate(),
+// so a click reversal sweeps smoothly to the opposite direction instead of teleporting.
+let flowAngle = P.flowDirection, flowAngleTarget = P.flowDirection;
 addEventListener('mousemove', (e) => { mNX = (e.clientX / innerWidth - 0.5) * 2; mNY = (e.clientY / innerHeight - 0.5) * 2; });
+
+// When embedded in an iframe with pointer-events:none, the parent page relays
+// mouse position (normalized 0-1) since native mousemove never reaches this document.
+addEventListener('message', (e) => {
+  const data = e.data;
+  if (!data || data.source !== 'iframe-relay') return;
+  if (data.type === 'mousemove') {
+    mNX = (data.x - 0.5) * 2;
+    mNY = (data.y - 0.5) * 2;
+  } else if (data.type === 'mouseleave') {
+    mNX = 0;
+    mNY = 0;
+  } else if (data.type === 'click') {
+    reverseFlow();   // each click flips the line flow by 180 degrees
+  }
+});
+
+// Reverse the direction energy flows along the lines. flowDirection is the "Direction"
+// control (0-360); nudging the target by 180 makes animate() ease (rotate) the flow to
+// the opposite direction, so clicks toggle the flow back and forth without a hard jump.
+function reverseFlow() {
+  flowAngleTarget += 180;
+}
 
 function updateLines(t) {
   const vR = P.voidSize, dS = P.voidDent, cx = vc.x, cz = vc.z;
@@ -237,7 +263,7 @@ const sections = [
     ['Speed', 0.0, 3.0, 0.05, 'energySpeed', v => { P.energySpeed = v; U.uEnergySpeed.value = v; }],
     ['Quantity', 1, MG, 1, 'energyQuantity', v => { P.energyQuantity = round(v); U.uEnergyQuantity.value = P.energyQuantity; }],
     ['Dispersion', 0.0, 1.0, 0.02, 'energyDispersion', v => { P.energyDispersion = v; U.uEnergyDispersion.value = v; }],
-    ['Direction', 0, 360, 1, 'flowDirection', v => { P.flowDirection = v; const r = v * PI / 180; U.uFlowDir.value.set(cos(r), sin(r)); }],
+    ['Direction', 0, 360, 1, 'flowDirection', v => { P.flowDirection = v; flowAngle = flowAngleTarget = v; const r = v * PI / 180; U.uFlowDir.value.set(cos(r), sin(r)); }],
     ['$energyColor'],
   ]],
   ['Void', [
@@ -336,7 +362,7 @@ function applyPreset(s) {
   U.uLineBrightness.value = s.lineBrightness; U.uLineColor.value.set(s.lineColor.r, s.lineColor.g, s.lineColor.b);
   U.uEnergyColor.value.set(s.energyColor.r, s.energyColor.g, s.energyColor.b);
   U.uEnergyDispersion.value = s.energyDispersion; U.uEnergyQuantity.value = s.energyQuantity;
-  if (s.flowDirection !== undefined) { const r = s.flowDirection * PI / 180; U.uFlowDir.value.set(cos(r), sin(r)); }
+  if (s.flowDirection !== undefined) { const r = s.flowDirection * PI / 180; U.uFlowDir.value.set(cos(r), sin(r)); flowAngle = flowAngleTarget = P.flowDirection; }
   bloomPass.strength = s.bloomStrength; bloomPass.radius = s.bloomRadius;
   syncUI();
 }
@@ -509,8 +535,10 @@ const urlPN = QS('preset');
 if (urlPN) {
   const allP = { ...BUILTIN_PRESETS, ...loadP() };
   const match = allP[urlPN] || Object.entries(allP).find(([k]) => k.toLowerCase() === urlPN.toLowerCase())?.[1];
-  if (match) { applyPreset(match); toast('Loaded "' + urlPN + '"'); }
-  else toast('Preset "' + urlPN + '" not found');
+  // Only surface load toasts in the editor; stay silent in embed mode (controls hidden)
+  // so no popup flashes bottom-right on load.
+  if (match) { applyPreset(match); if (panelVisible) toast('Loaded "' + urlPN + '"'); }
+  else if (panelVisible) toast('Preset "' + urlPN + '" not found');
 }
 
 document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap' }));
@@ -533,6 +561,13 @@ function animate() {
     trail[0].x = vc.x; trail[0].z = vc.z;
   }
   const vs = P.voidSmoothing, df = min(dt * 60, 3);
+  if (abs(flowAngleTarget - flowAngle) > 0.05) {            // ease the flow reversal into place
+    flowAngle += (flowAngleTarget - flowAngle) * min(0.01 * df, 1);
+    const fr = flowAngle * PI / 180;
+    U.uFlowDir.value.set(cos(fr), sin(fr));
+    P.flowDirection = ((flowAngle % 360) + 360) % 360;
+    if (panelVisible) syncUI();
+  }
   svmX += (mNX - svmX) * vs * df; svmY += (mNY - svmY) * vs * df;
   vt.x = svmX * 22; vt.z = svmY * -18;
   vc.x += (vt.x - vc.x) * vs * 2.5 * df; vc.z += (vt.z - vc.z) * vs * 2.5 * df;
